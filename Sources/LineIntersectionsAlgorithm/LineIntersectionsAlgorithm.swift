@@ -1,8 +1,8 @@
 import Foundation
 import RedBlackTree
 
-//MARK: - LineIntersectionLibrary
-public struct LineIntersectionLibrary {
+//MARK: - LineIntersectionsAlgorithm
+public struct LineIntersectionsAlgorithm {
    //Model Outputs
    /// A boolean variable which reports if all events in the EventQueue have been processed.
    /// Useful when stepping throug the model.
@@ -55,7 +55,7 @@ public struct LineIntersectionLibrary {
 }
 
 //MARK: - Algorithm
-extension LineIntersectionLibrary {
+extension LineIntersectionsAlgorithm {
    /// Handles all the events at the next unprocessed event point.
    ///
    /// - Returns: void
@@ -229,7 +229,7 @@ extension LineIntersectionLibrary {
 }
 
 //MARK: - Helpers
-extension LineIntersectionLibrary {
+extension LineIntersectionsAlgorithm {
    private mutating func recordIntersection(point: CGPoint, segments: (LineSegment,LineSegment)) {
       if let oldValue = intersectionsDictionary[point] {
          intersectionsDictionary[point] = Array(Set(oldValue + [segments.0,segments.1]))
