@@ -1,8 +1,8 @@
 import Foundation
 import RedBlackTree
 
-//MARK: - LineIntersectionsAlgorithm
-public struct LineIntersectionsAlgorithm {
+//MARK: - LineIntersectionAlgorithm
+public struct LineIntersectionAlgorithm {
    //Model Outputs
    /// A boolean variable which reports if all events in the EventQueue have been processed.
    /// Useful when stepping throug the model.
@@ -36,26 +36,23 @@ public struct LineIntersectionsAlgorithm {
    private var suspendedSegments = Set<LineSegment>()
    private var overlappingSegments = Set<Overlap>()
    private var intersectionsDictionary = [CGPoint : [LineSegment]]()
-   
+
    private var eventQueue = RedBlackTree<Event, CGPoint>()
    private var statusLine = RedBlackTree<LineSegment, CGFloat>()
    
    public init(lineSegments: [LineSegmentProtocol]) {
-      audit("Segments:")
       for i in 0..<lineSegments.count {
          let ls = LineSegment(index: i,
                               from: lineSegments[i].from,
                               to: lineSegments[i].to)
          eventQueue.insert(Event.upper(ls))
          eventQueue.insert(Event.lower(ls))
-         print("\(i): upper: \(ls.upper) lower: \(ls.lower)")
       }
-      audit("")
    }
 }
 
 //MARK: - Algorithm
-extension LineIntersectionsAlgorithm {
+extension LineIntersectionAlgorithm {
    /// Handles all the events at the next unprocessed event point.
    ///
    /// - Returns: void
@@ -68,8 +65,6 @@ extension LineIntersectionsAlgorithm {
    /// - Returns: void
    public mutating func processAllRemainingEvents() {
       while eventQueue.count > 0 { handleEventsAtNextEventPoint() }
-      assert(suspendedSegments.count == 0, "Error: suspendedSegments.count != 0 when event queue empty")
-      assert(statusLine.count == 0, "Error: statusLine.count != 0 when event queue empty")
    }
 
    /// Handles all the events at a single event point, mutating all output variables if  intersections or overlaps arise.
@@ -78,16 +73,10 @@ extension LineIntersectionsAlgorithm {
    private mutating func handleEventsAtNextEventPoint() {
       // 1. Check that the eventQueue is not empty; get the event.
       guard let event = eventQueue.first else { return }
-      audit("// 1. Check that the eventQueue is not empty; get the event.")
-      audit("Event: ( \(Double(event.redBlackTreeKey.x)), \(Double(event.redBlackTreeKey.y)))")
-      audit("")
 
       // 2. Move the sweepline to it and obtain all events which have this point as key
       LineSegment.eventPoint = event.redBlackTreeKey
       let events = eventQueue.removeAll(LineSegment.eventPoint)
-      audit("// 2. Move the sweepline to it and obtain all events which have this point as key")
-      audit("Events: \(events)")
-      audit("")
 
       // 3. Prepare three sets and partition events into the sets
       //    ● new uppers from these events (to be added as intersectors with others
@@ -107,23 +96,13 @@ extension LineIntersectionsAlgorithm {
                intersectors.insert(segment.1)
          }
       }
-      audit("// 3. Prepare three sets and partition events into the sets")
-      audit("uppers: \(uppers)")
-      audit("lowers: \(lowers)")
-      audit("intersectors: \(intersectors)")
-      audit("")
 
       // 4. Set the intersectionPoint on intersectors (for precision reasons) and
       //    remove segments traversing the eventPoint from the statusLine.
       intersectors.forEach { $0.intersectionPoint = LineSegment.eventPoint }
       statusLine.removeAll(LineSegment.eventPoint.x)
-      //TODO: remove test
-      audit("// 4. Remove segments traversing the eventPoint from the statusLine.")
-      audit("statusLine:\n\(statusLine)")
-      audit("")
 
       // 5. Record new intersections at eventPoint
-      audit("// 5. Record new intersections at eventPoint")
       if uppers.count > 0 {
          let union = uppers.union(lowers).union(intersectors)
          if union.count > 1 {
@@ -131,11 +110,7 @@ extension LineIntersectionsAlgorithm {
                union.forEach { if $0 != upper {recordIntersection(point: LineSegment.eventPoint, segments: ($0,upper))}}
             }
          }
-         audit("intersectionsDictionary: \(intersectionsDictionary)")
-      } else {
-         audit(" none")
       }
-      audit("")
 
       // 6. Remove any departing lowers from suspendedSegments and handle overlaps.
       //    Check if any uppers overlap any intersectors or other uppers. 'remain' is
@@ -163,14 +138,6 @@ extension LineIntersectionsAlgorithm {
             }
          }
       }
-      audit("// 6. Remove any departing lowers from suspendedSegments and handle overlaps")
-      audit("suspendedSegments: \(suspendedSegments)")
-      if uppers.count > 0 {
-         audit("overlappingSegments: \(overlappingSegments)")
-      } else {
-         audit(" none")
-      }
-      audit("")
 
       // 7. Reinsert all except lowers, sorted by rotated slope,
       //    placing horizontal segments last.
@@ -185,12 +152,6 @@ extension LineIntersectionsAlgorithm {
          }
       }
       reinserts.forEach { statusLine.insert($0) }
-      audit("// 8. Reinsert all except lowers, sorted by rotated slope, placing horizontal segments last.")
-      audit("reinserts: \(reinserts)")
-      audit("keys: \(reinserts.map { Double($0.redBlackTreeKey) })")
-      audit("slopes: \(reinserts.map { $0.rotatedSlope })")
-      audit("statusLine:\n\(statusLine)")
-      audit("")
 
       // 8. Check for intersections between new neighbours on the status line
       //    a) if nothing to insert, items on either side of the event need checking
@@ -198,7 +159,6 @@ extension LineIntersectionsAlgorithm {
       //       the right end with the right neighbour.
       //    Of course there are no new intersections inside reinserts since
       //    they have already intersected.
-      //    Clear forced intersectionPoint
       if reinserts.count == 0 {
          let (left, right) = statusLine.neighboursFor(LineSegment.eventPoint.x)
          if let l = left,
@@ -207,36 +167,32 @@ extension LineIntersectionsAlgorithm {
          }
       } else {
          let r = reinserts.first!
-         let (left, _) = statusLine.neighboursFor(r.redBlackTreeKey)
+         let (left, _) = statusLine.neighboursOf(r.redBlackTreeKey)!
          if let l = left {
             addIntersectionEvent(left: l, right: r, beyond: LineSegment.eventPoint)
          }
          let l = reinserts.last!
-         let (_, right) = statusLine.neighboursFor(l.redBlackTreeKey)
+         let (_, right) = statusLine.neighboursOf(l.redBlackTreeKey)!
          if let r = right  {
             addIntersectionEvent(left: l, right: r, beyond: LineSegment.eventPoint)
          }
       }
+      
+      // 9. Clear forced intersectionPoint
       intersectors.forEach { $0.intersectionPoint = nil }
-      audit("// 9. Check for intersections between new neighbours on the status line.")
-      audit("eventQueue:\n\(eventQueue)")
-      audit("")
-      audit("")
-      audit("")
 
       return
    }
 }
 
 //MARK: - Helpers
-extension LineIntersectionsAlgorithm {
+extension LineIntersectionAlgorithm {
    private mutating func recordIntersection(point: CGPoint, segments: (LineSegment,LineSegment)) {
       if let oldValue = intersectionsDictionary[point] {
          intersectionsDictionary[point] = Array(Set(oldValue + [segments.0,segments.1]))
       } else {
          intersectionsDictionary[point] = [segments.0,segments.1]
       }
-      audit("intersectionsDictionary:\n\(intersectionsDictionary)")
    }
 
    /// Adds an .intersection event to the eventQueue if the line segments intersect
@@ -255,12 +211,6 @@ extension LineIntersectionsAlgorithm {
       eventQueue.insert(Event.intersection(pt, (left, right)))
       recordIntersection(point: pt, segments: (left,right))
    }
-
-   func audit(_ str: String) {
-      if true {
-         print(str)
-      }
-   }
 }
 
 //MARK: - Overlap
@@ -278,3 +228,66 @@ private struct Overlap: Equatable, Hashable {
       return lhs.retain == rhs.retain && lhs.suspend == rhs.suspend
    }
 }
+
+
+/*  For Later
+ //MARK: - LineIntersectionsAlgorithm
+ public class LineIntersectionsAlgorithm {
+    public var intersectionCalls: Int { LineSegment.intersectionCalls }
+ 
+ 
+    var naiveSegments = [LineSegment]()
+    var naiveIntersections = [(CGPoint,(Int,Int))]()
+    func naive() {
+       let start = Date()
+       print("Start ",start)
+       for m in 0..<naiveSegments.count {
+          for n in (m+1)..<naiveSegments.count {
+             if let intersec = naiveSegments[m].intersection(with: naiveSegments[n]) { naiveIntersections.append((intersec,(naiveSegments[m].index,naiveSegments[n].index))) }
+          }
+       }
+       let duration = Date().timeIntervalSince(start)
+       print("Duration ",duration)
+       print("Calls: ",LineSegment.intersectionCalls, naiveIntersections.count)
+       print()
+       for inter in naiveIntersections.sorted(by: { $0.0 < $1.0 && $0.1 > $1.1 }) {
+          print("\(inter.0),\(inter.1)")
+       }
+    }
+ }
+ 
+ //MARK: - Private Methods
+ extension LineIntersectionsAlgorithm {
+
+    func recoverHiddenIntersections() {
+       // make dict of ls which overlap each other
+       var dict = [LineSegment: [LineSegment]]()
+       for ol in overlappingSegments {
+          if let oldValue = dict[ol.remain] {
+             dict[ol.remain] = oldValue + [ol.leave]
+          } else {
+             dict[ol.remain] = [ol.leave]
+          }
+          if let oldValue = dict[ol.leave] {
+             dict[ol.leave] = oldValue + [ol.remain]
+          } else {
+             dict[ol.leave] = [ol.remain]
+          }
+       }
+ 
+       // make every line with an intersection propagate to its overlappers
+       for (pt,lines) in intersectionsDictionary {
+          for ls in lines {
+             if let overs = dict[ls] {
+                for ol in overs {
+                   if ol.shares(y: pt.y, with: ls) {
+                      intersectionsDictionary[pt] = intersectionsDictionary[pt]! + [ol]
+                   }
+                }
+             }
+          }
+       }
+    }
+ }
+ 
+*/
